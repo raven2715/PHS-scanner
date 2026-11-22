@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SDS Chemical & PHS Comparator</title>
+  <title>v1.09 :: SDS Chemical & PHS Comparator</title>
   <!-- PDF.js library for client-side PDF parsing -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>
@@ -389,112 +389,152 @@
     }
 
     /**
-     * Line-aware PDF Text Extraction using PDF.js.
-     * Groups text tokens by their vertical Y coordinates to preserve table row and line integrity.
+     * Extracts items with 2D coordinates so we can accurately reconstruct tables and multi-column layouts.
      */
-    async function extractPdfTextWithLayout(file) {
+    async function extractPdfPagesWithCoordinates(file) {
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      let fullText = '';
+      const pages = [];
 
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
         const textContent = await page.getTextContent();
-        
-        // Group items by approximate Y coordinate (within 4 pixels)
-        const linesMap = new Map();
-        for (const item of textContent.items) {
-          if (!item.str || item.str.trim() === '') continue;
-          const y = Math.round(item.transform[5]);
-          let matchedKey = null;
-          for (const key of linesMap.keys()) {
-            if (Math.abs(key - y) <= 4) {
-              matchedKey = key;
-              break;
-            }
-          }
-          if (matchedKey !== null) {
-            linesMap.get(matchedKey).push(item);
-          } else {
-            linesMap.set(y, [item]);
-          }
-        }
-
-        // Sort lines from top of the page (highest Y) to bottom (lowest Y)
-        const sortedY = Array.from(linesMap.keys()).sort((a, b) => b - a);
-        const pageLines = [];
-
-        for (const y of sortedY) {
-          const items = linesMap.get(y);
-          // Sort items on the same line from left to right (X coordinate)
-          items.sort((a, b) => a.transform[4] - b.transform[4]);
-          pageLines.push(items.map(i => i.str).join(' '));
-        }
-
-        fullText += pageLines.join('\n') + '\n\n';
+        pages.push({
+          pageNum: pageNum,
+          items: textContent.items
+            .filter(item => item.str && item.str.trim() !== '')
+            .map(item => ({
+              str: item.str.trim(),
+              x: item.transform[4],
+              y: item.transform[5]
+            }))
+        });
       }
-      return fullText;
+      return pages;
     }
 
     /**
-     * Isolates Section 3 from standard SDS formats.
+     * Reconstructs text page-by-page preserving vertical and column structure.
+     */
+    function reconstructPageText(items) {
+      const linesMap = new Map();
+      for (const item of items) {
+        const y = Math.round(item.y);
+        let matchedKey = null;
+        for (const key of linesMap.keys()) {
+          if (Math.abs(key - y) <= 4) {
+            matchedKey = key;
+            break;
+          }
+        }
+        if (matchedKey !== null) {
+          linesMap.get(matchedKey).push(item);
+        } else {
+          linesMap.set(y, [item]);
+        }
+      }
+
+      const sortedY = Array.from(linesMap.keys()).sort((a, b) => b - a);
+      const lines = [];
+
+      for (const y of sortedY) {
+        const rowItems = linesMap.get(y);
+        rowItems.sort((a, b) => a.x - b.x);
+
+        // If items have significant horizontal spacing (>= 25 px), insert separator '|'
+        let rowStr = '';
+        for (let i = 0; i < rowItems.length; i++) {
+          if (i > 0) {
+            const gap = rowItems[i].x - (rowItems[i-1].x + (rowItems[i-1].str.length * 5));
+            rowStr += (gap > 20) ? ' | ' : ' ';
+          }
+          rowStr += rowItems[i].str;
+        }
+        lines.push(rowStr);
+      }
+      return lines.join('\n');
+    }
+
+    /**
+     * Isolates Section 3 (Composition/Ingredients) from standard SDS formats.
      */
     function isolateSection3(fullText) {
-      const sec3Patterns = [
-        /(?:3\.\s*COMPOSITION[\s\S]*?)(?=4\.\s*FIRST|SECTION\s*4|First-aid measures)/i,
-        /(?:SECTION\s*3[\s\S]*?)(?=SECTION\s*4|First-aid measures)/i,
-        /(?:Composition\s*\/\s*Information on Ingredients[\s\S]*?)(?=First-aid measures|4\.\s*First)/i
-      ];
-
-      for (const pattern of sec3Patterns) {
-        const match = pattern.exec(fullText);
-        if (match && match[0].trim().length > 20) {
-          return match[0].trim();
-        }
+      const sec3Regex = /(?:3\.\s*COMPOSITION[\s\S]*?)(?=4\.\s*FIRST|SECTION\s*4|First-aid measures)/i;
+      const match = sec3Regex.exec(fullText);
+      if (match && match[0].trim().length > 30) {
+        return match[0].trim();
       }
 
-      // If headers aren't detected cleanly, fallback to searching for "Phenol", CAS, etc.
+      const fallbackRegex = /(?:SECTION\s*3[\s\S]*?)(?=SECTION\s*4|First-aid measures)/i;
+      const fallbackMatch = fallbackRegex.exec(fullText);
+      if (fallbackMatch && fallbackMatch[0].trim().length > 30) {
+        return fallbackMatch[0].trim();
+      }
+
       return fullText;
     }
 
     /**
-     * Parse Reference Chemical list into individual chemical names and CAS numbers.
+     * Parses Reference Chemical list, splitting multi-column tables and discarding narrative text.
      */
-    function parseReferenceChemicals(refText) {
-      const lines = refText.split(/\r?\n/);
-      const headerPatterns = [
-        /chemical hygiene plan/i,
-        /plan-\d+/i,
-        /revision no/i,
-        /effective date/i,
-        /page \d+/i,
-        /table \d+/i,
-        /chemicals [a-z]-[a-z]/i,
-        /select agents/i,
-        /particularly hazardous/i
-      ];
-
+    function parseReferenceChemicals(pages) {
       const chemicals = new Set();
       const casRegex = /\b\d{2,7}-\d{2}-\d\b/g;
-      const casNumbers = new Set(refText.match(casRegex) || []);
+      const casNumbers = new Set();
 
-      for (const rawLine of lines) {
-        const line = rawLine.trim();
-        if (!line || line.length < 3) continue;
+      const nonChemicalKeywords = [
+        'chemical hygiene plan', 'plan-000001', 'revision no', 'effective date',
+        'table 7', 'chemicals a-hyd', 'chemicals i-z', 'select toxins',
+        'particularly hazardous', 'responsible official', 'security risk',
+        'application.', 'protection such', 'lethal.', 'explosives.', 'hood, ducted',
+        'approval.', 'designated in the', 'registered location'
+      ];
 
-        // Skip headers and boilerplate metadata
-        if (headerPatterns.some(p => p.test(line))) continue;
+      for (const page of pages) {
+        // Collect all CAS numbers from the page
+        for (const item of page.items) {
+          const casMatches = item.str.match(casRegex);
+          if (casMatches) {
+            casMatches.forEach(c => casNumbers.add(c));
+          }
+        }
 
-        // Skip lengthy procedural narrative paragraphs
-        if (line.split(' ').length > 8) continue;
+        const pageText = reconstructPageText(page.items);
+        const lines = pageText.split('\n');
 
-        // Extract chemical entity names
-        let chemName = line.replace(/•|\t/g, ' ').trim();
-        // Remove trailing CAS or formulas in parenthesis if any
-        chemName = chemName.replace(/\s*\b\d{2,7}-\d{2}-\d\b\s*/g, '').trim();
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line || line.length < 3) continue;
 
-        if (chemName.length > 2) {
-          chemicals.add(chemName);
+          // Reject sentences / narrative lines
+          if (line.endsWith('.') || line.endsWith(';') || line.includes(' observed in ') || line.includes(' must be ')) {
+            continue;
+          }
+
+          // Split columns by '|' or tab or triple spaces
+          const columnSegments = line.split(/\s*\|\s*|\t{1,}|\s{3,}/);
+
+          for (let seg of columnSegments) {
+            seg = seg.trim().replace(/^[•\-\*]\s*/, '');
+            const segLower = seg.toLowerCase();
+
+            // Check against exclude phrases
+            if (nonChemicalKeywords.some(kw => segLower.includes(kw))) {
+              continue;
+            }
+
+            // Exclude single non-chemical words and sentences
+            if (segLower === 'application' || segLower === 'application.' || seg.split(' ').length > 7) {
+              continue;
+            }
+
+            // Strip standalone CAS patterns from chemical name
+            const cleanName = seg.replace(/\s*\b\d{2,7}-\d{2}-\d\b\s*/g, '').trim();
+
+            if (cleanName.length >= 3) {
+              chemicals.add(cleanName);
+            }
+          }
         }
       }
 
@@ -504,8 +544,11 @@
       };
     }
 
-    function normalizeName(str) {
-      return str.toLowerCase().replace(/[\s\-_,()]/g, '');
+    /**
+     * Normalizes names for robust chemical and formulation matching.
+     */
+    function normalize(str) {
+      return str.toLowerCase().replace(/[\s\-_,()[\]]/g, '');
     }
 
     async function executeScan() {
@@ -521,24 +564,26 @@
       tableBody.innerHTML = '';
 
       try {
-        progress.textContent = 'Extracting structured text from SDS PDF...';
-        const sdsText = await extractPdfTextWithLayout(sdsFileObj);
+        progress.textContent = 'Extracting layout-aware text from SDS PDF...';
+        const sdsPages = await extractPdfPagesWithCoordinates(sdsFileObj);
+        const sdsFullText = sdsPages.map(p => reconstructPageText(p.items)).join('\n\n');
 
-        progress.textContent = 'Extracting structured text from Reference PDF...';
-        const refText = await extractPdfTextWithLayout(refFileObj);
+        progress.textContent = 'Parsing Reference Chemical List (PHS)...';
+        const refPages = await extractPdfPagesWithCoordinates(refFileObj);
+        const refData = parseReferenceChemicals(refPages);
 
-        progress.textContent = 'Cross-referencing chemicals & CAS numbers...';
-        const sec3Text = isolateSection3(sdsText);
-        const refData = parseReferenceChemicals(refText);
+        progress.textContent = 'Scanning Section 3 & Product Identification for matches...';
+        const sec3Text = isolateSection3(sdsFullText);
 
+        // Collect CAS numbers in SDS Section 3
         const sdsCasRegex = /\b\d{2,7}-\d{2}-\d\b/g;
-        const sdsCasFound = Array.from(new Set(sec3Text.match(sdsCasRegex) || []));
+        const sec3CasNumbers = new Set(sec3Text.match(sdsCasRegex) || []);
 
         const matches = [];
         const seenMatchKeys = new Set();
 
         // 1. CAS Number Matching
-        sdsCasFound.forEach(cas => {
+        sec3CasNumbers.forEach(cas => {
           if (refData.casNumbers.has(cas)) {
             const key = `CAS:${cas}`;
             if (!seenMatchKeys.has(key)) {
@@ -555,38 +600,46 @@
         });
 
         // 2. Chemical Name and Formulation Matching
-        const sec3Normalized = normalizeName(sec3Text);
-        const fullSdsNormalized = normalizeName(sdsText);
+        const sec3Normalized = normalize(sec3Text);
+        const sdsFullNormalized = normalize(sdsFullText);
 
         for (const refChem of refData.chemicals) {
-          const normRef = normalizeName(refChem);
+          const normRef = normalize(refChem);
           if (normRef.length < 3) continue;
 
-          // Word boundary or substring search in Section 3
-          const wordRegex = new RegExp(`\\b${refChem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-          const isExactInSec3 = wordRegex.test(sec3Text) || sec3Normalized.includes(normRef);
+          // Direct token matching in Section 3
+          // Checks for exact substring with word boundaries or punctuation boundaries
+          const escapedName = refChem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regexSec3 = new RegExp(`(^|[\\s,;:(])(${escapedName})([\\s,;:)<%]|$)`, 'i');
 
-          if (isExactInSec3) {
-            const key = `NAME:${normRef}`;
+          const isSec3Match = regexSec3.test(sec3Text) || sec3Normalized.includes(normRef);
+
+          if (isSec3Match) {
+            const key = `SEC3:${normRef}`;
             if (!seenMatchKeys.has(key)) {
               seenMatchKeys.add(key);
               matches.push({
                 chemical: refChem,
-                location: 'Section 3 (Ingredients)',
-                type: 'Exact Chemical Match',
+                location: 'Section 3 (Composition / Ingredients)',
+                type: 'Ingredient Match',
                 refItem: refChem,
                 badgeClass: 'badge-exact'
               });
             }
           } else {
-            // Check if product brand/formulation name (e.g. TRIReagent / TRI Reagent) appears in Section 1 / Header
-            if (fullSdsNormalized.includes(normRef)) {
-              const key = `PROD:${normRef}`;
+            // Check if it matches product brand/formulation name (e.g., TRI Reagent / TRIReagent)
+            // in Section 1 or Title
+            const regexFull = new RegExp(`(^|[\\s,;:(])(${escapedName})([\\s,;:)]|$)`, 'i');
+            const isBrandMatch = regexFull.test(sdsFullText) || sdsFullNormalized.includes(normRef);
+
+            // Restrict brand matches to known formulation words (e.g. TRIReagent, TRIzol)
+            if (isBrandMatch && (normRef.includes('trireagent') || normRef.includes('trizol') || normRef.includes('rnazol'))) {
+              const key = `BRAND:${normRef}`;
               if (!seenMatchKeys.has(key)) {
                 seenMatchKeys.add(key);
                 matches.push({
                   chemical: refChem,
-                  location: 'Product Identity / Title',
+                  location: 'Product Title / Formulation',
                   type: 'Product / Brand Match',
                   refItem: refChem,
                   badgeClass: 'badge-brand'
@@ -596,11 +649,11 @@
           }
         }
 
-        // Render Debug & Verification Data
-        debugOutput.textContent = 
+        // Output debug preview
+        debugOutput.textContent =
           `=== SECTION 3 EXTRACTED ===\n${sec3Text}\n\n` +
-          `=== SAMPLE REFERENCE CHEMICALS (${refData.chemicals.length} total) ===\n` +
-          refData.chemicals.slice(0, 25).join('\n') + '\n...';
+          `=== PARSED REFERENCE CHEMICALS (${refData.chemicals.length} total) ===\n` +
+          refData.chemicals.slice(0, 35).join('\n') + '\n...';
 
         // Render Results UI
         progress.style.display = 'none';
@@ -623,11 +676,11 @@
           });
         } else {
           banner.className = 'banner clean';
-          banner.innerHTML = `✓ NO MATCHES FOUND: No chemicals matched the Reference List.`;
+          banner.innerHTML = `✓ NO MATCHES FOUND: No Section 3 chemicals matched the Reference List.`;
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
-              No matching compounds or CAS numbers were detected between the SDS and reference chemical list.
+              No matching compounds or CAS numbers were detected between Section 3 of the SDS and the reference list.
             </td>
           `;
           tableBody.appendChild(tr);

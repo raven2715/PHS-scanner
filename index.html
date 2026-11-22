@@ -1,103 +1,605 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SDS Chemical Scanner Code v1.06</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #0f172a; color: #f8fafc; padding: 2rem; max-width: 900px; margin: 0 auto; }
-        .container { background-color: #1e293b; border-radius: 8px; border: 1px solid #334155; padding: 1.5rem; position: relative; }
-        h2 { margin-top: 0; color: #38bdf8; border-bottom: 1px solid #334155; padding-bottom: 0.75rem; display: flex; align-items: center; gap: 8px; }
-        pre { background-color: #0f172a; padding: 1.25rem; border-radius: 6px; overflow-x: auto; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 0.9rem; line-height: 1.5; color: #e2e8f0; border: 1px solid #1e293b; }
-        .btn-copy { position: absolute; top: 1.5rem; right: 1.5rem; background-color: #38bdf8; color: #0f172a; border: none; padding: 0.5rem 1rem; border-radius: 4px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
-        .btn-copy:hover { background-color: #0ea5e9; }
-        .keyword { color: #f43f5e; } .string { color: #10b981; } .comment { color: #64748b; font-style: italic; } .func { color: #38bdf8; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SDS Chemical & PHS Comparator v1.07</title>
+  <!-- PDF.js library for client-side PDF parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    // Set worker source for PDF.js
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  </script>
+  <style>
+    :root {
+      --primary: #0284c7;
+      --primary-hover: #0369a1;
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.15);
+      --success: #10b981;
+      --success-bg: rgba(16, 185, 129, 0.15);
+      --warning: #f59e0b;
+      --warning-bg: rgba(245, 158, 11, 0.15);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    header h1 {
+      font-size: 1.85rem;
+      color: #38bdf8;
+      margin-bottom: 0.5rem;
+    }
+
+    header p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (min-width: 768px) {
+      .grid-2 {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .file-dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 1.75rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: rgba(15, 23, 42, 0.4);
+    }
+
+    .file-dropzone:hover, .file-dropzone.dragover {
+      border-color: var(--primary);
+      background: rgba(2, 132, 199, 0.05);
+    }
+
+    .file-dropzone input {
+      display: none;
+    }
+
+    .file-dropzone .icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    .file-label {
+      font-weight: 600;
+      color: var(--text);
+      font-size: 1rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .file-subtext {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+
+    .file-status {
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+      color: #38bdf8;
+      word-break: break-all;
+    }
+
+    .actions {
+      text-align: center;
+      margin: 1.5rem 0;
+    }
+
+    .btn {
+      background-color: var(--primary);
+      color: #ffffff;
+      border: none;
+      padding: 0.75rem 2rem;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .btn:hover:not(:disabled) {
+      background-color: var(--primary-hover);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .progress-bar {
+      display: none;
+      margin-top: 1rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    /* Results section */
+    #results-area {
+      display: none;
+    }
+
+    .banner {
+      padding: 1.25rem;
+      border-radius: 8px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .banner.match {
+      background-color: var(--danger-bg);
+      border: 1px solid var(--danger);
+      color: #fca5a5;
+    }
+
+    .banner.clean {
+      background-color: var(--success-bg);
+      border: 1px solid var(--success);
+      color: #6ee7b7;
+    }
+
+    .table-container {
+      overflow-x: auto;
+      margin-top: 1rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      text-align: left;
+    }
+
+    th, td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      background: rgba(15, 23, 42, 0.6);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .badge-exact {
+      background: var(--danger-bg);
+      color: #f87171;
+      border: 1px solid #ef4444;
+    }
+
+    .badge-fuzzy {
+      background: var(--warning-bg);
+      color: #fbbf24;
+      border: 1px solid #f59e0b;
+    }
+
+    .badge-brand {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid #38bdf8;
+    }
+
+    .extracted-box {
+      margin-top: 1.5rem;
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+    }
+
+    .extracted-box summary {
+      cursor: pointer;
+      color: #38bdf8;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .extracted-box pre {
+      margin-top: 0.75rem;
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      white-space: pre-wrap;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h2>⚡ Python SDS Comparison Script</h2>
-        <button class="btn-copy" onclick="copyCode()">Copy Code</button>
-        <pre id="code-block"><span class="keyword">import</span> re
-<span class="keyword">from</span> pdfminer.high_level <span class="keyword">import</span> extract_text
+  <div class="container">
+    <header>
+      <h1>SDS & Reference Chemical Scanner</h1>
+      <p>Scan Safety Data Sheet (Section 3) for hazardous chemicals and cross-check against a reference list entirely in your browser.</p>
+    </header>
 
-<span class="keyword">def</span> <span class="func">extract_sds_section_3</span>(sds_text: str) -> str:
-    <span class="comment">"""Isolates Section 3 (Composition) from a standard 16-section SDS."""</span>
-    pattern = re.compile(
-        <span class="string">r"(?:3\.\s*COMPOSITION|Composition/information on ingredients|SECTION\s*3)"</span>
-        <span class="string">r"(.*?)"</span>
-        <span class="string">r"(?:4\.\s*FIRST|SECTION\s*4|First-aid measures)"</span>,
-        re.IGNORECASE | re.DOTALL
-    )
-    match = pattern.search(sds_text)
-    <span class="keyword">return</span> match.group(<span class="string">1</span>).strip() <span class="keyword">if</span> match <span class="keyword">else</span> sds_text
+    <div class="card">
+      <div class="grid-2">
+        <!-- SDS Dropzone -->
+        <div class="file-dropzone" id="sds-zone" onclick="document.getElementById('sds-file').click()">
+          <span class="icon">📄</span>
+          <div class="file-label">Safety Data Sheet (SDS)</div>
+          <div class="file-subtext">Drag & drop or click to select PDF</div>
+          <input type="file" id="sds-file" accept="application/pdf" />
+          <div class="file-status" id="sds-status">No file selected</div>
+        </div>
 
-<span class="keyword">def</span> <span class="func">parse_phs_list</span>(phs_pdf_path: str) -> set:
-    <span class="comment">"""Extracts cleaned chemical names from the CDC PHS List PDF."""</span>
-    raw_text = extract_text(phs_pdf_path)
-    lines = [line.strip() <span class="keyword">for</span> line <span class="keyword">in</span> raw_text.splitlines() <span class="keyword">if</span> line.strip()]
-    
-    exclude_keywords = {
-        <span class="string">'chemical hygiene plan'</span>, <span class="string">'plan-000001-csa'</span>, <span class="string">'revision no:'</span>, <span class="string">'effective date:'</span>, 
-        <span class="string">'page'</span>, <span class="string">'table 7:'</span>, <span class="string">'chemicals a-hyd'</span>, <span class="string">'chemicals i-z'</span>, <span class="string">'select toxins'</span>, 
-        <span class="string">'sodium azide is'</span>, <span class="string">'extremely toxic'</span>, <span class="string">'amount can be'</span>, <span class="string">'powder. upon'</span>, 
-        <span class="string">'sodium azide reacts'</span>, <span class="string">'which are shock-sensitive'</span>, <span class="string">'it can also'</span>, 
-        <span class="string">'store on metal'</span>, <span class="string">'sodium azide and'</span>, <span class="string">'safety cabinet'</span>, <span class="string">'include safety'</span>, 
-        <span class="string">'as double nitrile'</span>, <span class="string">'workers and visitors'</span>, <span class="string">'toxins at any'</span>, 
-        <span class="string">'assessment approval'</span>, <span class="string">'to select toxins'</span>, <span class="string">'responsible for'</span>, 
-        <span class="string">'location has been'</span>, <span class="string">'to specific agents'</span>, <span class="string">'application.'</span>
-    }
-    
-    phs_chemicals = set()
-    <span class="keyword">for</span> line <span class="keyword">in</span> lines:
-        lower_line = line.lower()
-        skip = <span class="keyword">False</span>
-        <span class="keyword">for</span> kw <span class="keyword">in</span> exclude_keywords:
-            <span class="keyword">if</span> kw <span class="keyword">in</span> lower_line:
-                skip = <span class="keyword">True</span>
-                <span class="keyword">break</span>
-        <span class="keyword">if</span> skip:
-            <span class="keyword">continue</span>
-        cleaned = line.strip(<span class="string">" ,.-•\t"</span>)
-        <span class="keyword">if</span> len(cleaned) > <span class="string">2</span> <span class="keyword">and</span> <span class="string">"highly explosive"</span> <span class="keyword">not</span> <span class="keyword">in</span> cleaned <span class="keyword">and</span> <span class="string">"biological"</span> <span class="keyword">not</span> <span class="keyword">in</span> cleaned:
-            phs_chemicals.add(cleaned)
-            
-    <span class="keyword">return</span> phs_chemicals
+        <!-- Reference List Dropzone -->
+        <div class="file-dropzone" id="ref-zone" onclick="document.getElementById('ref-file').click()">
+          <span class="icon">📋</span>
+          <div class="file-label">Reference Chemical List (PHS)</div>
+          <div class="file-subtext">Drag & drop or click to select PDF</div>
+          <input type="file" id="ref-file" accept="application/pdf" />
+          <div class="file-status" id="ref-status">No file selected</div>
+        </div>
+      </div>
 
-<span class="keyword">def</span> <span class="func">compare_sds_to_reference</span>(sds_path: str, ref_path: str) -> dict:
-    sds_full_text = extract_text(sds_path)
-    sds_sec_3 = extract_sds_section_3(sds_full_text)
-    phs_chemicals = parse_phs_list(ref_path)
-    
-    exact_matches = []
-    <span class="keyword">for</span> chem <span class="keyword">in</span> phs_chemicals:
-        std_chem = chem.lower()
-        <span class="keyword">if</span> std_chem == <span class="string">"trireagent"</span>:
-            std_chem = <span class="string">"tri reagent"</span>
-            
-        <span class="keyword">if</span> std_chem <span class="keyword">in</span> sds_sec_3.lower() <span class="keyword">or</span> (std_chem <span class="keyword">in</span> sds_full_text.lower() <span class="keyword">and</span> std_chem == <span class="string">"tri reagent"</span>):
-            exact_matches.append(chem)
-            
-    <span class="keyword">return</span> {
-        <span class="string">"match_found"</span>: len(exact_matches) > <span class="string">0</span>,
-        <span class="string">"matches"</span>: exact_matches
-    }
-
-<span class="keyword">if</span> __name__ == <span class="string">"__main__"</span>:
-    results = compare_sds_to_reference(<span class="string">"RNAzol_PHS.pdf"</span>, <span class="string">"PHS List pages.pdf"</span>)
-    print(<span class="string">"Match Status:"</span>, results[<span class="string">'match_found'</span>])
-    print(<span class="string">"Matched PHS Items:"</span>, results[<span class="string">'matches'</span>])</pre>
+      <div class="actions">
+        <button class="btn" id="scan-btn" disabled onclick="executeScan()">Run Chemical Comparison</button>
+        <div class="progress-bar" id="progress-info">Processing documents...</div>
+      </div>
     </div>
 
-    <script>
-        function copyCode() {
-            const code = document.getElementById('code-block').innerText;
-            navigator.clipboard.writeText(code).then(() => {
-                const btn = document.querySelector('.btn-copy');
-                btn.innerText = 'Copied!';
-                setTimeout(() => btn.innerText = 'Copy Code', 2000);
-            });
+    <!-- Results Area -->
+    <div id="results-area">
+      <div id="status-banner" class="banner"></div>
+
+      <div class="card">
+        <h3>Comparison Findings</h3>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Detected Chemical / Entity</th>
+                <th>Identifier / CAS</th>
+                <th>Match Type</th>
+                <th>Matched Reference Item</th>
+              </tr>
+            </thead>
+            <tbody id="results-table-body"></tbody>
+          </table>
+        </div>
+
+        <details class="extracted-box">
+          <summary>View Isolated SDS Section 3 Text</summary>
+          <pre id="raw-sec3-output"></pre>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let sdsFileObj = null;
+    let refFileObj = null;
+
+    // File input handlers
+    const sdsInput = document.getElementById('sds-file');
+    const refInput = document.getElementById('ref-file');
+    const scanBtn = document.getElementById('scan-btn');
+
+    sdsInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        sdsFileObj = e.target.files[0];
+        document.getElementById('sds-status').textContent = '✓ ' + sdsFileObj.name;
+        checkReady();
+      }
+    });
+
+    refInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        refFileObj = e.target.files[0];
+        document.getElementById('ref-status').textContent = '✓ ' + refFileObj.name;
+        checkReady();
+      }
+    });
+
+    function setupDropzone(zoneId, inputId) {
+      const zone = document.getElementById(zoneId);
+      const input = document.getElementById(inputId);
+
+      ['dragenter', 'dragover'].forEach(name => {
+        zone.addEventListener(name, (e) => {
+          e.preventDefault();
+          zone.classList.add('dragover');
+        });
+      });
+
+      ['dragleave', 'drop'].forEach(name => {
+        zone.addEventListener(name, (e) => {
+          e.preventDefault();
+          zone.classList.remove('dragover');
+        });
+      });
+
+      zone.addEventListener('drop', (e) => {
+        if (e.dataTransfer.files.length > 0) {
+          input.files = e.dataTransfer.files;
+          const event = new Event('change');
+          input.dispatchEvent(event);
         }
-    </script>
+      });
+    }
+
+    setupDropzone('sds-zone', 'sds-file');
+    setupDropzone('ref-zone', 'ref-file');
+
+    function checkReady() {
+      if (sdsFileObj && refFileObj) {
+        scanBtn.disabled = false;
+      }
+    }
+
+    // PDF text extraction using PDF.js
+    async function extractPdfText(file) {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let fullText = '';
+
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const pageStrings = textContent.items.map(item => item.str);
+        fullText += pageStrings.join(' ') + '\n';
+      }
+      return fullText;
+    }
+
+    // Section 3 isolation logic
+    function isolateSection3(fullText) {
+      const regex = /(?:3\.\s*COMPOSITION|Composition\/information on ingredients|SECTION\s*3)([\s\S]*?)(?:4\.\s*FIRST|SECTION\s*4|First-aid measures)/i;
+      const match = regex.exec(fullText);
+      if (match && match[1]) {
+        return match[1].trim();
+      }
+      return fullText; // fallback to full text
+    }
+
+    // Levenshtein / Token Fuzzy Similarity
+    function calculateSimilarity(str1, str2) {
+      const s1 = str1.toLowerCase().trim();
+      const s2 = str2.toLowerCase().trim();
+      if (s1 === s2) return 1.0;
+      if (s1.includes(s2) || s2.includes(s1)) return 0.9;
+
+      const track = Array(s2.length + 1).fill(null).map(() =>
+        Array(s1.length + 1).fill(null));
+      for (let i = 0; i <= s1.length; i += 1) track[0][i] = i;
+      for (let j = 0; j <= s2.length; j += 1) track[j][0] = j;
+
+      for (let j = 1; j <= s2.length; j += 1) {
+        for (let i = 1; i <= s1.length; i += 1) {
+          const indicator = s1[i - 1] === s2[j - 1] ? 0 : 1;
+          track[j][i] = Math.min(
+            track[j][i - 1] + 1,
+            track[j - 1][i] + 1,
+            track[j - 1][i - 1] + indicator
+          );
+        }
+      }
+      const distance = track[s2.length][s1.length];
+      return 1 - (distance / Math.max(s1.length, s2.length));
+    }
+
+    // Reference parsing & cleaning
+    function parseReferenceChemicals(refText) {
+      const lines = refText.split(/\r?\n/);
+      const excludeKeywords = [
+        'chemical hygiene plan', 'plan-000001', 'revision no:', 'effective date:',
+        'page', 'table 7:', 'chemicals a-hyd', 'chemicals i-z', 'select toxins',
+        'sodium azide is', 'extremely toxic', 'amount can be', 'safety cabinet',
+        'double nitrile', 'assessment approval', 'application.'
+      ];
+
+      const chemicals = new Set();
+      const casRegex = /\b\d{2,7}-\d{2}-\d\b/g;
+      const casNumbers = new Set(refText.match(casRegex) || []);
+
+      lines.forEach(line => {
+        let clean = line.replace(/•|\t|,/g, ' ').trim();
+        const lower = clean.toLowerCase();
+
+        const shouldExclude = excludeKeywords.some(kw => lower.includes(kw));
+        if (!shouldExclude && clean.length > 2 && !clean.includes('explosive')) {
+          // Remove standalone CAS numbers from names
+          clean = clean.replace(casRegex, '').trim();
+          if (clean.length > 2) {
+            chemicals.add(clean);
+          }
+        }
+      });
+
+      return {
+        names: Array.from(chemicals),
+        casNumbers: casNumbers
+      };
+    }
+
+    async function executeScan() {
+      const progress = document.getElementById('progress-info');
+      const scanBtn = document.getElementById('scan-btn');
+      const resultsArea = document.getElementById('results-area');
+      const banner = document.getElementById('status-banner');
+      const tableBody = document.getElementById('results-table-body');
+      const rawSec3 = document.getElementById('raw-sec3-output');
+
+      progress.style.display = 'block';
+      scanBtn.disabled = true;
+      tableBody.innerHTML = '';
+
+      try {
+        progress.textContent = 'Extracting text from SDS PDF...';
+        const sdsText = await extractPdfText(sdsFileObj);
+
+        progress.textContent = 'Extracting text from Reference List PDF...';
+        const refText = await extractPdfText(refFileObj);
+
+        progress.textContent = 'Analyzing Section 3 & matching compounds...';
+        const sec3Text = isolateSection3(sdsText);
+        rawSec3.textContent = sec3Text;
+
+        const refData = parseReferenceChemicals(refText);
+
+        // Regex for CAS numbers in Section 3
+        const casRegex = /\b\d{2,7}-\d{2}-\d\b/g;
+        const sdsCasFound = Array.from(new Set(sec3Text.match(casRegex) || []));
+
+        const matches = [];
+
+        // 1. CAS Number Matching
+        sdsCasFound.forEach(cas => {
+          if (refData.casNumbers.has(cas)) {
+            matches.push({
+              chemical: `Compound (CAS ${cas})`,
+              id: cas,
+              type: 'Exact CAS Match',
+              refItem: cas,
+              badgeClass: 'badge-exact'
+            });
+          }
+        });
+
+        // 2. Chemical Name Matching
+        refData.names.forEach(refChem => {
+          const lowerChem = refChem.toLowerCase().trim();
+          const cleanRef = lowerChem.replace(/[-_]/g, ' ');
+
+          // Whole-word or substring match in isolated Section 3
+          const wordBoundaryRegex = new RegExp(`\\b${lowerChem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+
+          if (wordBoundaryRegex.test(sec3Text)) {
+            matches.push({
+              chemical: refChem,
+              id: 'Named in Sec. 3',
+              type: 'Exact Name Match',
+              refItem: refChem,
+              badgeClass: 'badge-exact'
+            });
+          } else if (lowerChem === 'trireagent' && /tri[\s-]?reagent/i.test(sdsText)) {
+            // Check brand/reagent names matching in full text
+            matches.push({
+              chemical: 'TRI Reagent',
+              id: 'Product Formulation',
+              type: 'Brand / Formulation Match',
+              refItem: refChem,
+              badgeClass: 'badge-brand'
+            });
+          } else if (lowerChem.length > 5) {
+            // Fuzzy match against lines in Section 3
+            const lines = sec3Text.split(/\r?\n/);
+            for (const line of lines) {
+              const score = calculateSimilarity(cleanRef, line.toLowerCase());
+              if (score >= 0.88) {
+                matches.push({
+                  chemical: line.trim(),
+                  id: 'Sec. 3 Text',
+                  type: `Fuzzy Match (${Math.round(score * 100)}%)`,
+                  refItem: refChem,
+                  badgeClass: 'badge-fuzzy'
+                });
+                break;
+              }
+            }
+          }
+        });
+
+        // Display results
+        progress.style.display = 'none';
+        scanBtn.disabled = false;
+        resultsArea.style.display = 'block';
+
+        if (matches.length > 0) {
+          banner.className = 'banner match';
+          banner.innerHTML = `⚠️ MATCH FOUND: ${matches.length} chemical entity(s) match the Reference List!`;
+
+          matches.forEach(m => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td><strong>${m.chemical}</strong></td>
+              <td><code>${m.id}</code></td>
+              <td><span class="badge ${m.badgeClass}">${m.type}</span></td>
+              <td>${m.refItem}</td>
+            `;
+            tableBody.appendChild(tr);
+          });
+        } else {
+          banner.className = 'banner clean';
+          banner.innerHTML = `✓ NO MATCHES FOUND: No Section 3 chemicals matched the Reference List.`;
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+              No matching compounds or CAS numbers were detected between Section 3 and the reference chemical list.
+            </td>
+          `;
+          tableBody.appendChild(tr);
+        }
+
+      } catch (err) {
+        console.error(err);
+        progress.style.display = 'none';
+        scanBtn.disabled = false;
+        alert('An error occurred during file parsing: ' + err.message);
+      }
+    }
+  </script>
 </body>
 </html>

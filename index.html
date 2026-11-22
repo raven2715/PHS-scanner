@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CDC PHS Chemical SDS Scanner v1.04</title>
+  <title>CDC PHS Chemical SDS Scanner v1.05</title>
   <!-- Load Mozilla PDF.js from Cloudflare CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <style>
@@ -374,14 +374,15 @@
     return terms;
   }
 
-  // Strictly extracts Section 1 and Section 3 headers without leaking into other sections
+  // Strictly extracts Section 1 and Section 3 headers:
+  // Supports: "Section 1", "1. Identification", "1 Identification", and "1." / "1" on header lines
   function extractTargetSections(fullText) {
     const sections = [];
 
-    // 1. Strict Section 1 Regex:
-    // Requires line boundary; matches "Section 1" or "1. Identification";
-    // Terminates at line boundary "Section 2" or "2. Hazard"
-    const sec1Regex = /(?:^|\n)\s*(?:\*\s*)?(?:section\s*0?1\b|1[\.\s\-]+identification)[\s\S]*?(?=(?:^|\n)\s*(?:\*\s*)?(?:section\s*0?2\b|2[\.\s\-]+hazard))/gi;
+    // Section 1 Header pattern:
+    // Matches: "Section 1", "SECTION 01", "1. Identification", or line starting with "1." / "1" followed by optional title
+    // Lookahead stops at Section 2: "Section 2", "2. Hazard", or line starting with "2." / "2"
+    const sec1Regex = /(?:^|\n)\s*(?:\*\s*)?(?:section\s*0?1\b|1\b[\.\s\-:]*(?:identification\b|[^\n\r]{0,35}(?=\r?\n)))[\s\S]*?(?=(?:^|\n)\s*(?:\*\s*)?(?:section\s*0?2\b|2\b[\.\s\-:]*(?:hazard\b|[^\n\r]{0,35}(?=\r?\n))))/gi;
     let match1;
     let count1 = 0;
     while ((match1 = sec1Regex.exec(fullText)) !== null) {
@@ -393,10 +394,11 @@
       });
     }
 
-    // 2. Strict Section 3 Regex:
-    // Uses negative lookahead (?![0-9]) to ignore SARA Section 313/355 in Section 15.
-    // Terminates cleanly at line boundary "Section 4", "4. First-Aid", or "4 First Aid".
-    const sec3Regex = /(?:^|\n)\s*(?:\*\s*)?(?:section\s*0?3(?![0-9])\b|3[\.\s\-]+composition)[\s\S]*?(?=(?:^|\n)\s*(?:\*\s*)?(?:section\s*0?4\b|4[\.\s\-]+first[\s\-]*aid))/gi;
+    // Section 3 Header pattern:
+    // Uses negative lookahead (?![0-9]) to strictly avoid matching SARA Section 313/355 in Section 15.
+    // Matches: "Section 3", "SECTION 03", "3. Composition", or line starting with "3." / "3" followed by optional title
+    // Lookahead stops at Section 4: "Section 4", "4. First-Aid", or line starting with "4." / "4"
+    const sec3Regex = /(?:^|\n)\s*(?:\*\s*)?(?:section\s*0?3(?![0-9])\b|3\b(?![0-9])[\.\s\-:]*(?:composition\b|[^\n\r]{0,35}(?=\r?\n)))[\s\S]*?(?=(?:^|\n)\s*(?:\*\s*)?(?:section\s*0?4\b|4\b[\.\s\-:]*(?:first[\s\-]*aid\b|[^\n\r]{0,35}(?=\r?\n))))/gi;
     let match3;
     let count3 = 0;
     while ((match3 = sec3Regex.exec(fullText)) !== null) {
@@ -437,7 +439,7 @@
 
       const targetSections = extractTargetSections(fullText);
 
-      // Handle cases where standard GHS Section 1 and Section 3 headers could not be found
+      // Handle cases where Section 1 and Section 3 headers could not be found
       if (targetSections.length === 0) {
         statusBar.style.display = "none";
         resultBox.style.display = "block";
@@ -446,7 +448,7 @@
         resultContent.innerHTML = `
           <div style="font-size: 0.92rem; color: #78350f; line-height: 1.5;">
             The scanner strictly searches <strong>Section 1 (Identification)</strong> and <strong>Section 3 (Composition)</strong> to prevent false positives from other sections.<br><br>
-            Standard GHS headings for Section 1 or Section 3 could not be detected. Please verify that this PDF has selectable text and uses standard OSHA/GHS numbering.
+            Standard headings starting with <em>"Section 1"</em>, <em>"1. Identification"</em>, or <em>"1."</em> could not be detected. Please verify that this PDF has selectable text and uses standard OSHA/GHS numbering.
           </div>
         `;
         return;
@@ -505,8 +507,11 @@
       resultContent.innerHTML = outputHtml;
 
     } catch (err) {
-      statusBar.style.display = "block";
-      statusBar.textContent = "❌ Failed to parse PDF: " + err.message;
+      statusBar.style.display = "none";
+      resultBox.style.display = "block";
+      resultBox.className = "result-panel warning";
+      resultHeader.innerHTML = "❌ Processing Error";
+      resultContent.textContent = "Failed to parse PDF: " + err.message;
     }
   }
 </script>

@@ -1,520 +1,103 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CDC PHS Chemical SDS Scanner v1.05</title>
-  <!-- Load Mozilla PDF.js from Cloudflare CDN -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <style>
-    :root {
-      --primary: #005ea2;
-      --primary-hover: #0b4778;
-      --danger: #b91c1c;
-      --danger-bg: #fef2f2;
-      --danger-border: #f87171;
-      --success: #15803d;
-      --success-bg: #f0fdf4;
-      --success-border: #86efac;
-      --neutral-dark: #1f2937;
-      --neutral-mid: #4b5563;
-      --neutral-light: #f9fafb;
-      --border: #d1d5db;
-    }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      background: #f3f4f6;
-      margin: 0;
-      padding: 24px 16px;
-      color: var(--neutral-dark);
-      display: flex;
-      justify-content: center;
-    }
-
-    .container {
-      width: 100%;
-      max-width: 760px;
-      background: #ffffff;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 28px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    }
-
-    .header {
-      border-bottom: 2px solid #e5e7eb;
-      padding-bottom: 16px;
-      margin-bottom: 20px;
-    }
-
-    .header h1 {
-      font-size: 1.45rem;
-      margin: 0 0 6px 0;
-      color: var(--neutral-dark);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .header p {
-      margin: 0;
-      color: var(--neutral-mid);
-      font-size: 0.95rem;
-      line-height: 1.4;
-    }
-
-    .upload-zone {
-      border: 2px dashed #9ca3af;
-      border-radius: 8px;
-      padding: 30px 20px;
-      text-align: center;
-      background: var(--neutral-light);
-      cursor: pointer;
-      transition: border-color 0.2s, background-color 0.2s;
-    }
-
-    .upload-zone:hover, .upload-zone.dragover {
-      border-color: var(--primary);
-      background-color: #eff6ff;
-    }
-
-    .upload-zone input[type="file"] {
-      display: none;
-    }
-
-    .upload-icon {
-      font-size: 2.2rem;
-      margin-bottom: 8px;
-    }
-
-    .upload-label {
-      font-weight: 600;
-      color: var(--primary);
-      cursor: pointer;
-    }
-
-    .selected-file {
-      margin-top: 10px;
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: var(--neutral-mid);
-    }
-
-    .btn-actions {
-      display: flex;
-      gap: 12px;
-      margin-top: 16px;
-      justify-content: flex-end;
-    }
-
-    button {
-      padding: 10px 20px;
-      border-radius: 6px;
-      font-size: 0.95rem;
-      font-weight: 600;
-      border: none;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-
-    .btn-scan {
-      background: var(--primary);
-      color: white;
-    }
-
-    .btn-scan:hover {
-      background: var(--primary-hover);
-    }
-
-    .btn-scan:disabled {
-      background: #9ca3af;
-      cursor: not-allowed;
-    }
-
-    .btn-clear {
-      background: #e5e7eb;
-      color: var(--neutral-mid);
-    }
-
-    .btn-clear:hover {
-      background: #d1d5db;
-    }
-
-    .status-bar {
-      margin-top: 16px;
-      font-size: 0.9rem;
-      color: var(--neutral-mid);
-      display: none;
-    }
-
-    .result-panel {
-      margin-top: 24px;
-      padding: 20px;
-      border-radius: 8px;
-      display: none;
-    }
-
-    .result-panel.danger {
-      background: var(--danger-bg);
-      border: 1px solid var(--danger-border);
-    }
-
-    .result-panel.success {
-      background: var(--success-bg);
-      border: 1px solid var(--success-border);
-    }
-
-    .result-panel.warning {
-      background: #fffbeb;
-      border: 1px solid #fcd34d;
-    }
-
-    .result-title {
-      font-size: 1.1rem;
-      font-weight: 700;
-      margin-bottom: 12px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .result-panel.danger .result-title {
-      color: var(--danger);
-    }
-
-    .result-panel.success .result-title {
-      color: var(--success);
-    }
-
-    .result-panel.warning .result-title {
-      color: #92400e;
-    }
-
-    .component-card {
-      background: #ffffff;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 14px 18px;
-      margin-top: 12px;
-    }
-
-    .component-title {
-      font-weight: 700;
-      font-size: 0.95rem;
-      color: var(--neutral-dark);
-      margin-bottom: 6px;
-    }
-
-    .section-badge {
-      display: inline-block;
-      font-size: 0.75rem;
-      font-weight: 600;
-      padding: 2px 8px;
-      border-radius: 4px;
-      background: #e0f2fe;
-      color: #0369a1;
-      margin-left: 8px;
-    }
-
-    .match-list {
-      margin: 8px 0 0 0;
-      padding-left: 20px;
-    }
-
-    .match-list li {
-      margin-bottom: 6px;
-      color: var(--danger);
-      font-weight: 500;
-    }
-
-    .match-list li span {
-      color: var(--neutral-mid);
-      font-size: 0.88rem;
-      font-style: italic;
-    }
-
-    .phs-info-box {
-      margin-top: 24px;
-      border-top: 1px solid #e5e7eb;
-      padding-top: 14px;
-      font-size: 0.82rem;
-      color: #6b7280;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SDS Chemical Scanner Code</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #0f172a; color: #f8fafc; padding: 2rem; max-width: 900px; margin: 0 auto; }
+        .container { background-color: #1e293b; border-radius: 8px; border: 1px solid #334155; padding: 1.5rem; position: relative; }
+        h2 { margin-top: 0; color: #38bdf8; border-bottom: 1px solid #334155; padding-bottom: 0.75rem; display: flex; align-items: center; gap: 8px; }
+        pre { background-color: #0f172a; padding: 1.25rem; border-radius: 6px; overflow-x: auto; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 0.9rem; line-height: 1.5; color: #e2e8f0; border: 1px solid #1e293b; }
+        .btn-copy { position: absolute; top: 1.5rem; right: 1.5rem; background-color: #38bdf8; color: #0f172a; border: none; padding: 0.5rem 1rem; border-radius: 4px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        .btn-copy:hover { background-color: #0ea5e9; }
+        .keyword { color: #f43f5e; } .string { color: #10b981; } .comment { color: #64748b; font-style: italic; } .func { color: #38bdf8; }
+    </style>
 </head>
 <body>
+    <div class="container">
+        <h2>⚡ Python SDS Comparison Script</h2>
+        <button class="btn-copy" onclick="copyCode()">Copy Code</button>
+        <pre id="code-block"><span class="keyword">import</span> re
+<span class="keyword">from</span> pdfminer.high_level <span class="keyword">import</span> extract_text
 
-<div class="container">
-  <div class="header">
-    <h1>🧪 CDC PHS Chemical SDS Scanner</h1>
-    <p>Upload a manufacturer Safety Data Sheet (SDS) PDF. The scanner strictly isolates <strong>Section 1 (Identification)</strong> and <strong>Section 3 (Composition/Ingredients)</strong> to cross-reference chemicals against the 137 Particularly Hazardous Substances (PHS) on Table 7 of the Chemical Hygiene Plan.</p>
-  </div>
+<span class="keyword">def</span> <span class="func">extract_sds_section_3</span>(sds_text: str) -> str:
+    <span class="comment">"""Isolates Section 3 (Composition) from a standard 16-section SDS."""</span>
+    pattern = re.compile(
+        <span class="string">r"(?:3\.\s*COMPOSITION|Composition/information on ingredients|SECTION\s*3)"</span>
+        <span class="string">r"(.*?)"</span>
+        <span class="string">r"(?:4\.\s*FIRST|SECTION\s*4|First-aid measures)"</span>,
+        re.IGNORECASE | re.DOTALL
+    )
+    match = pattern.search(sds_text)
+    <span class="keyword">return</span> match.group(<span class="string">1</span>).strip() <span class="keyword">if</span> match <span class="keyword">else</span> sds_text
 
-  <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
-    <div class="upload-icon">📄</div>
-    <div>Drag & drop your SDS PDF file here, or <span class="upload-label">Browse</span></div>
-    <input type="file" id="fileInput" accept="application/pdf" onchange="handleFileSelect(event)">
-    <div class="selected-file" id="selectedFileName"></div>
-  </div>
-
-  <div class="btn-actions">
-    <button class="btn-clear" onclick="resetForm()">Clear</button>
-    <button class="btn-scan" id="scanBtn" onclick="runScanner()" disabled>Scan Sections 1 & 3</button>
-  </div>
-
-  <div class="status-bar" id="statusBar">⏳ Loading PDF and strictly isolating Sections 1 and 3...</div>
-
-  <div class="result-panel" id="resultBox">
-    <div class="result-title" id="resultHeader"></div>
-    <div id="resultContent"></div>
-  </div>
-
-  <div class="phs-info-box">
-    <strong>Verification Scope:</strong> Pre-loaded with 137 Table 7 chemicals from PLAN-000001-CSA (Rev 002). Restricted strictly to Section 1 (Product & Chemical Identifiers) and Section 3 (Composition & Ingredients). All other sections (First Aid, Accidental Release, Exposure Limits, Toxicological, Regulatory, etc.) are excluded from matching.
-  </div>
-</div>
-
-<script>
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-  // Master CDC Table 7 PHS chemical list (137 entries)
-  const PHS_CHEMICALS = [
-    "1,2-Benzanthracene", "1,2-Dibromoethane (ethylene dibromide)", "1,3-Propanesultone",
-    "1,4-Dichlorobenzene", "1,4-Dioxane", "1-Chloro-2,4-dinitrobenzene", "1-Naphthylamine",
-    "17β-Estradiol (E2)", "2-Anisidine", "2-Mercaptoethanol", "2-Methylcyclohexylamine",
-    "2-Naphthylamine", "2-Nitropropane", "4-Aminobiphenyl", "4-Dimethylaminopyridine",
-    "5-Methylchrysene", "Acetaldehyde", "Acetamide", "Acrolein", "Acrylamide", "Acrylonitrile",
-    "Aldicarb", "Aldicarb sulfone", "Ammonia (anhydrous)", "Aniline", "Arsenic (and comp.)",
-    "Arsenic (elemental/inorganic comp.; except arsine)", "Arsenic trioxide", "Benzene",
-    "Benzidine", "Benzofuran", "Benzyl chloride", "Beryllium", "Beryllium compounds",
-    "Boric acid (solid)", "Bromine", "Brucine", "Cadmium", "Cadmium compounds",
-    "Carbon disulfide", "Carbon tetrachloride", "Chloramphenicol", "Chlordane",
-    "Chloroacetaldehyde", "Chloroform (trichloromethane)", "Chlorophenols (di)",
-    "Chloropicrin", "Chromium(III)", "Chromium(VI) compounds (insoluble)",
-    "Chromium(VI) compounds (water soluble)", "Cobalt chloride", "Cyanogen bromide",
-    "Cycloheximide", "Cyclophosphamide (anhydrous)", "Cyclosporin (cyclosporine)",
-    "Dacarbazine", "Dichlorodiphenyltrichloroethane (DDT)", "Dichloromethane (methylene chloride)",
-    "Diethylamine", "Diethylstilbestrol", "Dioxins/Furans", "Disodium methyl arsenate",
-    "Epichlorohydrin", "Estrone", "Ethidium bromide", "Ethylene oxide", "Fluoroacetamide",
-    "Fluorouracil (5-FU)", "Formaldehyde", "Formamide", "Glutaraldehyde",
-    "Heptachlor (and heptachlor epoxide)", "Hexane", "Hydrazine", "Hydrazine hydrate",
-    "Hydrofluoric acid", "Isoprene", "Kepone", "Lead (and its inorganic comp.)",
-    "Lead acetate trihydrate", "Lithium compounds", "Mercury (organic)", "Mitomycin C",
-    "N,N-Dimethylformamide", "N-Lauroylsarcosine (and sodium salt)", "N-Nitrosodi-n-butylamine",
-    "N-Nitrosodiethanolamine", "N-Nitrosodiethylamine", "N-Nitrosodimethylamine",
-    "N-Nitrosomorpholine", "N-Nitrosonornicotine", "N-Nitrosopiperidine", "N-Nitrosopyrrolidine",
-    "Nickel compounds (sulfate and sulfide)", "Nicotine (and salts)", "Nitric acid (fuming)",
-    "Nitrilotriacetic acid", "Osmium tetroxide", "Paraformaldehyde", "Pentachlorobiphenyl",
-    "Peracetic acid", "Phenol", "Phorate", "Phosgene", "Phosphine", "Phosphorus",
-    "Picric acid", "Potassium bromate", "Potassium cyanide", "Potassium dichromate",
-    "Propoxur", "Quinoline", "Reserpine", "Safrole", "Sodium arsenite", "Sodium azide (NaN3)",
-    "Sodium chlorite", "Sodium dichromate(VI)", "Strychnine", "Styrene", "TRIReagent",
-    "TRIzol", "Tetrachloroethylene (perchloroethylene)", "Tetrachloromethane (carbon tetrachloride)",
-    "Tetrahydrofuran", "Tetramethylammonium chloride", "Thallium compounds", "Thimerosal",
-    "Thiophenol (phenyl mercaptan)", "Thiourea", "Toluene", "Trypan blue", "Vinyl acetate",
-    "Vinyl chloride", "Xylene", "o-Phenylenediamine dihydrochloride", "o-Toluidine", "β-Propiolactone"
-  ];
-
-  let selectedFile = null;
-
-  // Drag-and-drop setup
-  const dropZone = document.getElementById('dropZone');
-  ['dragenter', 'dragover'].forEach(name => {
-    dropZone.addEventListener(name, (e) => { e.preventDefault(); dropZone.classList.add('dragover'); }, false);
-  });
-  ['dragleave', 'drop'].forEach(name => {
-    dropZone.addEventListener(name, (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); }, false);
-  });
-  dropZone.addEventListener('drop', (e) => {
-    const files = e.dataTransfer.files;
-    if (files.length && files[0].type === "application/pdf") {
-      selectedFile = files[0];
-      document.getElementById('selectedFileName').textContent = `Selected: ${selectedFile.name}`;
-      document.getElementById('scanBtn').disabled = false;
-    } else {
-      alert("Please upload a valid PDF file.");
+<span class="keyword">def</span> <span class="func">parse_phs_list</span>(phs_pdf_path: str) -> set:
+    <span class="comment">"""Extracts cleaned chemical names from the CDC PHS List PDF."""</span>
+    raw_text = extract_text(phs_pdf_path)
+    lines = [line.strip() <span class="keyword">for</span> line <span class="keyword">in</span> raw_text.splitlines() <span class="keyword">if</span> line.strip()]
+    
+    exclude_keywords = {
+        <span class="string">'chemical hygiene plan'</span>, <span class="string">'plan-000001-csa'</span>, <span class="string">'revision no:'</span>, <span class="string">'effective date:'</span>, 
+        <span class="string">'page'</span>, <span class="string">'table 7:'</span>, <span class="string">'chemicals a-hyd'</span>, <span class="string">'chemicals i-z'</span>, <span class="string">'select toxins'</span>, 
+        <span class="string">'sodium azide is'</span>, <span class="string">'extremely toxic'</span>, <span class="string">'amount can be'</span>, <span class="string">'powder. upon'</span>, 
+        <span class="string">'sodium azide reacts'</span>, <span class="string">'which are shock-sensitive'</span>, <span class="string">'it can also'</span>, 
+        <span class="string">'store on metal'</span>, <span class="string">'sodium azide and'</span>, <span class="string">'safety cabinet'</span>, <span class="string">'include safety'</span>, 
+        <span class="string">'as double nitrile'</span>, <span class="string">'workers and visitors'</span>, <span class="string">'toxins at any'</span>, 
+        <span class="string">'assessment approval'</span>, <span class="string">'to select toxins'</span>, <span class="string">'responsible for'</span>, 
+        <span class="string">'location has been'</span>, <span class="string">'to specific agents'</span>, <span class="string">'application.'</span>
     }
-  });
+    
+    phs_chemicals = set()
+    <span class="keyword">for</span> line <span class="keyword">in</span> lines:
+        lower_line = line.lower()
+        skip = <span class="keyword">False</span>
+        <span class="keyword">for</span> kw <span class="keyword">in</span> exclude_keywords:
+            <span class="keyword">if</span> kw <span class="keyword">in</span> lower_line:
+                skip = <span class="keyword">True</span>
+                <span class="keyword">break</span>
+        <span class="keyword">if</span> skip:
+            <span class="keyword">continue</span>
+        cleaned = line.strip(<span class="string">" ,.-•\t"</span>)
+        <span class="keyword">if</span> len(cleaned) > <span class="string">2</span> <span class="keyword">and</span> <span class="string">"highly explosive"</span> <span class="keyword">not</span> <span class="keyword">in</span> cleaned <span class="keyword">and</span> <span class="string">"biological"</span> <span class="keyword">not</span> <span class="keyword">in</span> cleaned:
+            phs_chemicals.add(cleaned)
+            
+    <span class="keyword">return</span> phs_chemicals
 
-  function handleFileSelect(e) {
-    if (e.target.files.length) {
-      selectedFile = e.target.files[0];
-      document.getElementById('selectedFileName').textContent = `Selected: ${selectedFile.name}`;
-      document.getElementById('scanBtn').disabled = false;
+<span class="keyword">def</span> <span class="func">compare_sds_to_reference</span>(sds_path: str, ref_path: str) -> dict:
+    sds_full_text = extract_text(sds_path)
+    sds_sec_3 = extract_sds_section_3(sds_full_text)
+    phs_chemicals = parse_phs_list(ref_path)
+    
+    exact_matches = []
+    <span class="keyword">for</span> chem <span class="keyword">in</span> phs_chemicals:
+        std_chem = chem.lower()
+        <span class="keyword">if</span> std_chem == <span class="string">"trireagent"</span>:
+            std_chem = <span class="string">"tri reagent"</span>
+            
+        <span class="keyword">if</span> std_chem <span class="keyword">in</span> sds_sec_3.lower() <span class="keyword">or</span> (std_chem <span class="keyword">in</span> sds_full_text.lower() <span class="keyword">and</span> std_chem == <span class="string">"tri reagent"</span>):
+            exact_matches.append(chem)
+            
+    <span class="keyword">return</span> {
+        <span class="string">"match_found"</span>: len(exact_matches) > <span class="string">0</span>,
+        <span class="string">"matches"</span>: exact_matches
     }
-  }
 
-  function resetForm() {
-    selectedFile = null;
-    document.getElementById('fileInput').value = "";
-    document.getElementById('selectedFileName').textContent = "";
-    document.getElementById('scanBtn').disabled = true;
-    document.getElementById('statusBar').style.display = "none";
-    document.getElementById('resultBox').style.display = "none";
-  }
+<span class="keyword">if</span> __name__ == <span class="string">"__main__"</span>:
+    results = compare_sds_to_reference(<span class="string">"RNAzol_PHS.pdf"</span>, <span class="string">"PHS List pages.pdf"</span>)
+    print(<span class="string">"Match Status:"</span>, results[<span class="string">'match_found'</span>])
+    print(<span class="string">"Matched PHS Items:"</span>, results[<span class="string">'matches'</span>])</pre>
+    </div>
 
-  function escapeRegExp(str) {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
-
-  function getSearchTerms(chem) {
-    const terms = [chem];
-    if (chem.includes('(')) {
-      const parenParts = [...chem.matchAll(/\((.*?)\)/g)];
-      parenParts.forEach(match => {
-        const val = match[1].trim();
-        if (val.length >= 3 && !val.includes('comp.') && !val.includes('solid') && !val.includes('salts')) {
-          terms.push(val);
+    <script>
+        function copyCode() {
+            const code = document.getElementById('code-block').innerText;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = document.querySelector('.btn-copy');
+                btn.innerText = 'Copied!';
+                setTimeout(() => btn.innerText = 'Copy Code', 2000);
+            });
         }
-      });
-      const preParen = chem.split('(')[0].trim();
-      if (preParen.length >= 3) terms.push(preParen);
-    }
-    return terms;
-  }
-
-  // Strictly extracts Section 1 and Section 3 headers:
-  // Supports: "Section 1", "1. Identification", "1 Identification", and "1." / "1" on header lines
-  function extractTargetSections(fullText) {
-    const sections = [];
-
-    // Section 1 Header pattern:
-    // Matches: "Section 1", "SECTION 01", "1. Identification", or line starting with "1." / "1" followed by optional title
-    // Lookahead stops at Section 2: "Section 2", "2. Hazard", or line starting with "2." / "2"
-    const sec1Regex = /(?:^|\n)\s*(?:\*\s*)?(?:section\s*0?1\b|1\b[\.\s\-:]*(?:identification\b|[^\n\r]{0,35}(?=\r?\n)))[\s\S]*?(?=(?:^|\n)\s*(?:\*\s*)?(?:section\s*0?2\b|2\b[\.\s\-:]*(?:hazard\b|[^\n\r]{0,35}(?=\r?\n))))/gi;
-    let match1;
-    let count1 = 0;
-    while ((match1 = sec1Regex.exec(fullText)) !== null) {
-      count1++;
-      sections.push({
-        title: `Section 1: Identification (Part ${count1})`,
-        badge: "Section 1",
-        text: match1[0].trim()
-      });
-    }
-
-    // Section 3 Header pattern:
-    // Uses negative lookahead (?![0-9]) to strictly avoid matching SARA Section 313/355 in Section 15.
-    // Matches: "Section 3", "SECTION 03", "3. Composition", or line starting with "3." / "3" followed by optional title
-    // Lookahead stops at Section 4: "Section 4", "4. First-Aid", or line starting with "4." / "4"
-    const sec3Regex = /(?:^|\n)\s*(?:\*\s*)?(?:section\s*0?3(?![0-9])\b|3\b(?![0-9])[\.\s\-:]*(?:composition\b|[^\n\r]{0,35}(?=\r?\n)))[\s\S]*?(?=(?:^|\n)\s*(?:\*\s*)?(?:section\s*0?4\b|4\b[\.\s\-:]*(?:first[\s\-]*aid\b|[^\n\r]{0,35}(?=\r?\n))))/gi;
-    let match3;
-    let count3 = 0;
-    while ((match3 = sec3Regex.exec(fullText)) !== null) {
-      count3++;
-      sections.push({
-        title: `Section 3: Composition / Ingredients (Part ${count3})`,
-        badge: "Section 3",
-        text: match3[0].trim()
-      });
-    }
-
-    return sections;
-  }
-
-  async function runScanner() {
-    if (!selectedFile) return;
-
-    const statusBar = document.getElementById('statusBar');
-    const resultBox = document.getElementById('resultBox');
-    const resultHeader = document.getElementById('resultHeader');
-    const resultContent = document.getElementById('resultContent');
-
-    resultBox.style.display = "none";
-    statusBar.style.display = "block";
-    statusBar.textContent = "⏳ Reading PDF pages and isolating Sections 1 & 3...";
-
-    try {
-      const arrayBuffer = await selectedFile.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      let fullText = "";
-
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const pageStr = textContent.items.map(item => item.str).join(" ");
-        fullText += pageStr + "\n";
-      }
-
-      const targetSections = extractTargetSections(fullText);
-
-      // Handle cases where Section 1 and Section 3 headers could not be found
-      if (targetSections.length === 0) {
-        statusBar.style.display = "none";
-        resultBox.style.display = "block";
-        resultBox.className = "result-panel warning";
-        resultHeader.innerHTML = "⚠️ Sections 1 & 3 Could Not Be Isolated";
-        resultContent.innerHTML = `
-          <div style="font-size: 0.92rem; color: #78350f; line-height: 1.5;">
-            The scanner strictly searches <strong>Section 1 (Identification)</strong> and <strong>Section 3 (Composition)</strong> to prevent false positives from other sections.<br><br>
-            Standard headings starting with <em>"Section 1"</em>, <em>"1. Identification"</em>, or <em>"1."</em> could not be detected. Please verify that this PDF has selectable text and uses standard OSHA/GHS numbering.
-          </div>
-        `;
-        return;
-      }
-
-      let totalMatches = 0;
-      let outputHtml = "";
-
-      targetSections.forEach(section => {
-        const matchedChemicals = [];
-
-        PHS_CHEMICALS.forEach(chem => {
-          const terms = getSearchTerms(chem);
-          for (const term of terms) {
-            const rx = new RegExp(`\\b${escapeRegExp(term)}\\b`, "i");
-            if (rx.test(section.text)) {
-              matchedChemicals.push({ chem, term });
-              totalMatches++;
-              break;
-            }
-          }
-        });
-
-        outputHtml += `
-          <div class="component-card">
-            <div class="component-title">
-              ${section.title}
-              <span class="section-badge">${section.badge}</span>
-            </div>
-        `;
-
-        if (matchedChemicals.length > 0) {
-          outputHtml += `<ul class="match-list">`;
-          matchedChemicals.forEach(m => {
-            outputHtml += `<li>⚠️ <strong>${m.chem}</strong> <span>(matched on "${m.term}")</span></li>`;
-          });
-          outputHtml += `</ul>`;
-        } else {
-          outputHtml += `<div style="color: var(--success); font-size: 0.9rem;">✅ No Table 7 PHS chemicals identified in this section.</div>`;
-        }
-
-        outputHtml += `</div>`;
-      });
-
-      statusBar.style.display = "none";
-      resultBox.style.display = "block";
-
-      if (totalMatches > 0) {
-        resultBox.className = "result-panel danger";
-        resultHeader.innerHTML = `🚨 PHS MATCH DETECTED (${totalMatches} instance${totalMatches > 1 ? 's' : ''} found in Sections 1 & 3)`;
-      } else {
-        resultBox.className = "result-panel success";
-        resultHeader.innerHTML = "✅ No Hazardous PHS Matches Found in Sections 1 & 3";
-      }
-
-      resultContent.innerHTML = outputHtml;
-
-    } catch (err) {
-      statusBar.style.display = "none";
-      resultBox.style.display = "block";
-      resultBox.className = "result-panel warning";
-      resultHeader.innerHTML = "❌ Processing Error";
-      resultContent.textContent = "Failed to parse PDF: " + err.message;
-    }
-  }
-</script>
-
+    </script>
 </body>
 </html>
